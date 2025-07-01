@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>拼圖遊戲</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px;
+        }
+
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            font-size: 5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        #timer {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            visibility: hidden;
+        }
+
+        #counter {
+            font-size: 1.0rem;
+            margin-bottom: 10px;
+            visibility: hidden;
+        }
+
+        #puzzle {
+            display: flex;
+            flex-wrap: wrap;
+            border: 2px solid #333;
+            position: relative;
+        }
+
+        .tile {
+            box-sizing: border-box;
+            background-size: cover;
+            border: 1px solid #999;
+            cursor: grab;
+        }
+
+        .empty {
+            background: #eee;
+            border: 1px dashed #aaa;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            margin-right: 5px;
+        }
+
+        select,
+        input[type="file"] {
+            padding: 5px 10px;
+            margin-right: 5px;
+        }
+
+        .controls {
+            margin-top: 10px;
+        }
+
+        /* 標示出單色塊
+        .tile[ignore="true"] {
+            outline: 3px dashed orange;
+        } */
+    </style>
+</head>
+
+<body>
+
+    <div id="overlay">3</div>
+
+    <h1>拼圖遊戲</h1>
+    <div id="timer">時間：0 秒</div>
+    <div id="counter">移動次數：0 次</div>
+    <div id="puzzle"></div>
+
+    <div class="controls">
+        <label>
+            拼圖大小：
+            <select id="sizeSelect" onchange="changeSize()">
+                <option value="3">3x3</option>
+                <option value="4">4x4</option>
+                <option value="5">5x5</option>
+            </select>
+        </label>
+
+        <label>
+            上傳圖片：
+            <input type="file" accept="image/*" onchange="uploadImage(event)">
+        </label>
+
+        <button onclick="restart()">重新開始</button>
+    </div>
+
+    <script>
+        const puzzle = document.getElementById('puzzle');
+        const overlay = document.getElementById('overlay');
+        const timerDisplay = document.getElementById('timer');
+        const counterDisplay = document.getElementById('counter');
+        const sizeSelect = document.getElementById('sizeSelect');
+
+        let size = parseInt(sizeSelect.value);
+        let imageUrl = './player_small.png'; // 預設圖片
+        let tiles = [];
+        let tileSize = 100; // 會根據 size 動態調整
+        let timer = null;
+        let seconds = 0;
+        let steps = 0;
+        let gameActive = true;
+
+        function createTiles() {
+            puzzle.innerHTML = '';
+            tiles = [];
+
+            tileSize = 100 * (3 / size); // 自動調整 tile 尺寸
+            puzzle.style.width = `${tileSize * size}px`;
+            puzzle.style.height = `${tileSize * size}px`;
+
+            // 建立一個隱藏的 canvas
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            // img.crossOrigin = 'anonymous'; // 避免跨域問題，圖片存在本地端時不需要此行
+            img.src = imageUrl;
+
+            img.onload = () => {
+
+                // Canvas 縮放到與拼圖顯示相同
+                canvas.width = tileSize * size;
+                canvas.height = tileSize * size;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                for (let y = 0; y < size; y++) {
+                    for (let x = 0; x < size; x++) {
+                        const tile = document.createElement('div');
+                        tile.classList.add('tile');
+                        tile.style.width = `${tileSize}px`;
+                        tile.style.height = `${tileSize}px`;
+                        tile.style.backgroundImage = `url('${imageUrl}')`;
+                        tile.style.backgroundSize = `${tileSize * size}px ${tileSize * size}px`;
+                        tile.style.backgroundPosition = `-${x * tileSize}px -${y * tileSize}px`;
+                        tile.dataset.index = y * size + x;
+                        tile.draggable = true;
+
+                        // 判斷是否為單色
+                        const imgX = x * tileSize;
+                        const imgY = y * tileSize;
+                        const imgW = tileSize;
+                        const imgH = tileSize;
+
+                        const isMono = isTileMonochrome(ctx, imgX, imgY, imgW, imgH);
+                        console.log('[' + x + ',' + y + ']: ' + isMono);
+
+                        tile.dataset.ignore = isMono ? "true" : "false";
+                        if (isMono) {
+                            tile.setAttribute('ignore', 'true'); // CSS 樣式提示
+                        }
+
+                        tiles.push(tile);
+                    }
+                }
+
+                // 最後一塊是空白
+                const last = tiles[tiles.length - 1];
+                last.classList.add('empty');
+                last.style.backgroundImage = 'none';
+
+                tiles.forEach(tile => puzzle.appendChild(tile));
+                addDragEvents();
+            };
+        }
+
+        function isTileMonochrome(ctx, x, y, w, h) {
+            const imgData = ctx.getImageData(x, y, w, h).data;
+            const threshold = 10; // 誤差容忍值     
+
+            let allBlack = true;
+            let allWhite = true;
+
+            for (let i = 0; i < imgData.length; i += 4) {
+                const r = imgData[i];
+                const g = imgData[i + 1];
+                const b = imgData[i + 2];
+                const a = imgData[i + 3];
+
+                // 忽略透明像素  
+                if (a < 50) { continue; }
+
+                // 判斷不是黑
+                if (r > threshold || g > threshold || b > threshold) {
+                    allBlack = false;
+                }
+
+                // 判斷不是白
+                if (r < (255 - threshold) || g < (255 - threshold) || b < (255 - threshold)) {
+                    allWhite = false;
+                }
+
+                if (!allBlack && !allWhite) break;
+            }
+
+            return allBlack || allWhite;
+        }
+
+        function addDragEvents() {
+            tiles.forEach(tile => {
+                const newTile = tile.cloneNode(true); // 移除所有舊事件
+                puzzle.replaceChild(newTile, tile);
+            });
+
+            tiles = Array.from(puzzle.children);
+
+            let dragged;
+
+            tiles.forEach(tile => {
+                tile.addEventListener('dragstart', () => {
+                    if (!gameActive) return e.preventDefault(); // 禁止拖動
+                    dragged = tile;
+                });
+
+                tile.addEventListener('dragover', (e) => {
+                    if (!gameActive) return;
+                    e.preventDefault();
+                });
+
+                tile.addEventListener('drop', () => {
+                    if (!gameActive) return;
+
+                    if (dragged && dragged !== tile && tile.classList.contains('empty')) {
+                        swapTiles(dragged, tile);
+                        startCounter();
+
+                        if (isSolved()) {
+                            clearInterval(timer);
+                            gameActive = false; //停止拖動
+                            alert(`完成拼圖！🎉\n用時：${seconds} 秒`);
+                        }
+                    }
+                });
+            });
+        }
+
+        //交換 DOM 順序和 tiles 陣列
+        function swapTiles(a, b) {
+            const aIndex = tiles.indexOf(a);
+            const bIndex = tiles.indexOf(b);
+
+            // 交換 tiles 陣列中的位置
+            const temp = tiles[aIndex];
+            tiles[aIndex] = tiles[bIndex];
+            tiles[bIndex] = temp;
+
+            // 重新根據 tiles 陣列順序刷新 DOM
+            tiles.forEach(tile => puzzle.appendChild(tile));
+        }
+
+        function shuffle() {  //打亂拼圖
+            for (let i = tiles.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                puzzle.insertBefore(tiles[j], tiles[i]);
+                [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+            }
+            addDragEvents();
+        }
+
+        function isSolved() {  //檢查拼圖是否完成
+            const domTiles = Array.from(puzzle.children);
+
+            return domTiles.every((tile, index) => {
+                if (tile.dataset.ignore === "true") {
+                    return true; // 單色塊忽略
+                }
+                return tile.dataset.index == index;
+            });
+        }
+
+        function startTimer() {  //計時器
+            seconds = 0;
+            timerDisplay.textContent = `時間：${seconds} 秒`;
+            timerDisplay.style.visibility = 'visible';
+
+            timer = setInterval(() => {
+                seconds++;
+                timerDisplay.textContent = `時間：${seconds} 秒`;
+            }, 1000);
+        }
+
+        function startCounter() {  //計數器
+            if (!gameActive) return;
+
+            steps++;
+            counterDisplay.textContent = `移動次數：${steps} 次`;
+        }
+
+        function countdown(start = 3) {  //倒數畫面
+            let count = start;
+            overlay.textContent = count;
+            overlay.style.display = 'flex';
+
+            steps = 0;
+            counterDisplay.textContent = `移動次數：${steps} 次`;
+            counterDisplay.style.visibility = 'visible';
+
+            const interval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    overlay.textContent = count;
+                } else {
+                    clearInterval(interval);
+                    overlay.style.display = 'none';
+                    shuffle();
+                    startTimer();
+                }
+            }, 1000);
+        }
+
+        function restart() {
+            clearInterval(timer);
+            gameActive = true;  // 開啟拖動
+
+            createTiles();
+            overlay.style.display = 'flex';
+            countdown();
+        }
+
+        function changeSize() {
+            size = parseInt(sizeSelect.value);
+            restart();
+        }
+
+        function uploadImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    imageUrl = e.target.result;
+                    restart();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 初始化
+        createTiles();
+        countdown();
+    </script>
+
+</body>
+
+</html>
