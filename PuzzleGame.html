@@ -187,7 +187,8 @@
                 last.style.backgroundImage = 'none';
 
                 tiles.forEach(tile => puzzle.appendChild(tile));
-                addDragEvents();
+                // addDragEvents();
+                enableClickMove(); // 開啟點擊互動
             };
         }
 
@@ -223,7 +224,8 @@
             return allBlack || allWhite;
         }
 
-        function addDragEvents() {
+        //拖移方式移動拼圖
+        /*function addDragEvents() {
             tiles.forEach(tile => {
                 const newTile = tile.cloneNode(true); // 移除所有舊事件
                 puzzle.replaceChild(newTile, tile);
@@ -259,6 +261,66 @@
                     }
                 });
             });
+        }*/
+
+        //點擊移動方式
+        function enableClickMove() {
+            tiles.forEach(tile => {
+                tile.onclick = () => {
+                    if (!gameActive) return;
+                    if (tile.classList.contains('empty')) return;
+
+                    const tileIndex = tiles.indexOf(tile);
+                    const emptyIndex = tiles.findIndex(t => t.classList.contains('empty'));
+
+                    if (isAdjacent(tileIndex, emptyIndex)) {
+                        swapTiles(tile, tiles[emptyIndex]);
+                        startCounter();
+
+                        if (isSolved()) finishPuzzle();
+                    }
+                };
+
+                // 拖曳支援
+                tile.addEventListener('dragstart', (e) => {
+                    if (!gameActive) return e.preventDefault();  // 禁止拖動
+                    tile.classList.add('dragging');
+                    e.dataTransfer.setData('text/plain', tiles.indexOf(tile));
+                });
+
+                tile.addEventListener('dragover', (e) => {
+                    if (!gameActive) return;
+                    e.preventDefault();
+                });
+
+                tile.addEventListener('drop', (e) => {
+                    if (!gameActive) return;
+                    e.preventDefault();
+
+                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    const toIndex = tiles.indexOf(tile);
+                    const fromTile = tiles[fromIndex];
+
+                    if (tile.classList.contains('empty')) {
+                        swapTiles(fromTile, tile);
+                        startCounter();
+
+                        if (isSolved()) finishPuzzle();
+                    }
+                });
+            });
+        }
+
+        function isAdjacent(i1, i2) {
+            const x1 = i1 % size, y1 = Math.floor(i1 / size);
+            const x2 = i2 % size, y2 = Math.floor(i2 / size);
+            return (Math.abs(x1 - x2) + Math.abs(y1 - y2)) === 1;
+        }
+
+        function finishPuzzle() {
+            clearInterval(timer);
+            gameActive = false;
+            alert(`完成拼圖！🎉\n用時：${seconds} 秒\n移動：${steps} 次`);
         }
 
         //交換 DOM 順序和 tiles 陣列
@@ -281,7 +343,11 @@
                 puzzle.insertBefore(tiles[j], tiles[i]);
                 [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
             }
-            addDragEvents();
+
+            tiles = Array.from(puzzle.children); //同步 tiles 陣列與畫面順序
+
+            // addDragEvents();
+            enableClickMove(); //打亂後重新綁定點擊與拖曳
         }
 
         function isSolved() {  //檢查拼圖是否完成
