@@ -79,10 +79,10 @@
             margin-top: 10px;
         }
 
-        /* 標示出單色塊
+        /* 標示出單色塊*/
         .tile[ignore="true"] {
             outline: 3px dashed orange;
-        } */
+        }
     </style>
 </head>
 
@@ -192,36 +192,70 @@
             };
         }
 
+        //分析每塊拼圖是否為「全黑」或「全白」
+         /* function isTileMonochrome(ctx, x, y, w, h) {
+              const imgData = ctx.getImageData(x, y, w, h).data;
+              const threshold = 30; // 誤差容忍值     
+  
+              let allBlack = true;
+              let allWhite = true;
+  
+              for (let i = 0; i < imgData.length; i += 4) {
+                  const r = imgData[i];
+                  const g = imgData[i + 1];
+                  const b = imgData[i + 2];
+                  const a = imgData[i + 3];
+  
+                  // 忽略透明像素  
+                  if (a < 50) { continue; }
+  
+                  // 判斷不是黑
+                  if (r > threshold || g > threshold || b > threshold) {
+                      allBlack = false;
+                  }
+  
+                  // 判斷不是白
+                  if (r < (255 - threshold) || g < (255 - threshold) || b < (255 - threshold)) {
+                      allWhite = false;
+                  }
+  
+                  if (!allBlack && !allWhite) break;
+              }
+  
+              return allBlack || allWhite;
+          }*/
+
+        //檢查像素變異度
         function isTileMonochrome(ctx, x, y, w, h) {
             const imgData = ctx.getImageData(x, y, w, h).data;
-            const threshold = 10; // 誤差容忍值     
-
-            let allBlack = true;
-            let allWhite = true;
+            let totalPixels = imgData.length / 4;
+            let rTotal = 0, gTotal = 0, bTotal = 0;
 
             for (let i = 0; i < imgData.length; i += 4) {
-                const r = imgData[i];
-                const g = imgData[i + 1];
-                const b = imgData[i + 2];
-                const a = imgData[i + 3];
-
-                // 忽略透明像素  
-                if (a < 50) { continue; }
-
-                // 判斷不是黑
-                if (r > threshold || g > threshold || b > threshold) {
-                    allBlack = false;
-                }
-
-                // 判斷不是白
-                if (r < (255 - threshold) || g < (255 - threshold) || b < (255 - threshold)) {
-                    allWhite = false;
-                }
-
-                if (!allBlack && !allWhite) break;
+                rTotal += imgData[i];
+                gTotal += imgData[i + 1];
+                bTotal += imgData[i + 2];
             }
 
-            return allBlack || allWhite;
+            const rAvg = rTotal / totalPixels;
+            const gAvg = gTotal / totalPixels;
+            const bAvg = bTotal / totalPixels;
+
+            let variance = 0;
+            for (let i = 0; i < imgData.length; i += 4) {
+                const dr = imgData[i] - rAvg;
+                const dg = imgData[i + 1] - gAvg;
+                const db = imgData[i + 2] - bAvg;
+                variance += dr * dr + dg * dg + db * db;
+            }
+
+            const stdDev = Math.sqrt(variance / totalPixels);  //標準差檢查，越小越像單色
+            console.log("stdDev: " + stdDev);
+
+            const isDark = rAvg < 15 && gAvg < 15 && bAvg < 15;
+            const isBright = rAvg > 240 && gAvg > 240 && bAvg > 240;
+
+            return stdDev < 5 && (isDark || isBright);  
         }
 
         //拖移方式移動拼圖
