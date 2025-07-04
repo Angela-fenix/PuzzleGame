@@ -308,6 +308,29 @@
                         if (isSolved()) finishPuzzle();
                     }
                 });
+
+                // 模擬觸控拖曳 for iOS
+                let startX, startY;
+                tile.addEventListener('touchstart', (e) => {
+                    if (!gameActive || tile.classList.contains('empty')) return;
+                    const touch = e.touches[0];
+                    startX = touch.clientX;
+                    startY = touch.clientY;
+                });
+
+                tile.addEventListener('touchend', (e) => {
+                    if (!gameActive || tile.classList.contains('empty')) return;
+                    const emptyTile = tiles.find(t => t.classList.contains('empty'));
+                    const rect = emptyTile.getBoundingClientRect();
+                    const dx = Math.abs(startX - rect.left - tileSize / 2);
+                    const dy = Math.abs(startY - rect.top - tileSize / 2);
+
+                    if ((dx < tileSize && dy === 0) || (dy < tileSize && dx === 0)) {
+                        swapTiles(tile, emptyTile);
+                        startCounter();
+                        if (isSolved()) finishPuzzle();
+                    }
+                });
             });
         }
 
