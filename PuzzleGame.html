@@ -28,6 +28,105 @@
             z-index: 999;
         }
 
+        #birthdayText {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: none;
+            padding: 20px 40px;
+            border-radius: 12px;
+            background-color: rgba(240, 240, 240, 0.705);
+            /* 淺灰底 */
+            text-align: center;
+            animation: fadeInScale 1s ease-out forwards;
+        }
+
+        #birthdayText span {
+            /* 桃紅漸層文字*/
+            font-size: clamp(2rem, 6vw, 5rem);
+            font-weight: bold;
+            background: linear-gradient(90deg, #e98be9, #ec6fd1, #f7e48f, #6cc3e6);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+            animation: rainbowText 6s linear infinite;
+        }
+
+        @keyframes fadeInScale {
+            0% {
+                transform: translateX(-50%) scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translateX(-50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes rainbowText {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .balloon {
+            position: fixed;
+            width: 40px;
+            height: 60px;
+            background-color: var(--color);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            z-index: 999;
+            animation: floatUp 6s linear forwards;
+            transform: rotate(var(--angle));
+        }
+
+        .string {
+            position: absolute;
+            left: 50%;
+            top: 100%;
+            width: 20px;
+            height: 60px;
+            transform: translateX(-50%);
+            background: transparent;
+        }
+
+        .string::before {
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(circle, #444 1px, transparent 1px);
+            background-size: 4px 8px;
+            background-repeat: repeat-y;
+            left: 0;
+            top: 0;
+            mask-image: radial-gradient(circle, black 1px, transparent 1px);
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(100vh) scale(1) rotate(var(--angle));
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-150vh) scale(1.2) rotate(var(--angle));
+                opacity: 0;
+            }
+        }
+
         h1 {
             margin-bottom: 10px;
         }
@@ -79,16 +178,19 @@
             margin-top: 10px;
         }
 
-        /* 標示出單色塊*/
+        /* 標示出單色塊
         .tile[ignore="true"] {
             outline: 3px dashed orange;
-        }
+        }*/
     </style>
 </head>
 
 <body>
-
     <div id="overlay">3</div>
+    <canvas id="celebration"></canvas>
+    <div id="birthdayText">
+        <span>浦洋生日快樂！</span>
+    </div>
 
     <h1>拼圖遊戲</h1>
     <div id="timer">時間：0 秒</div>
@@ -105,13 +207,75 @@
             </select>
         </label>
 
-        <label>
+        <!-- <label>
             上傳圖片：
             <input type="file" accept="image/*" onchange="uploadImage(event)">
-        </label>
+        </label> -->
 
         <button onclick="restart()">重新開始</button>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        const celebrationCanvas = document.getElementById('celebration');
+        const confettiInstance = confetti.create(celebrationCanvas, { resize: true, useWorker: true });
+
+        function launchCelebration() {
+            if (!window.hasStartedOnce) return; //首次開啟網頁不播放動畫
+
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    confettiInstance({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                }, i * 300);
+            }
+
+            // 動態產生氣球
+            for (let i = 0; i < 20; i++) {
+                const balloon = document.createElement('div');
+                balloon.className = 'balloon';
+
+                const angle = `${Math.random() * 30 - 15}deg`;
+                const left = Math.random() * 100;
+                const top = Math.random() * 100;
+                balloon.style.left = `${left}vw`;
+                balloon.style.top = `${top}vw`;
+                balloon.style.setProperty('--color', `hsl(${Math.random() * 360}, 100%, 70%)`);
+                balloon.style.setProperty('--angle', angle);
+
+                // const string = document.createElement('div');
+                // string.className = 'string';
+                // balloon.appendChild(string);
+                // 建立繩子曲線
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svg = document.createElementNS(svgNS, "svg");
+                svg.setAttribute("width", "20");
+                svg.setAttribute("height", "60");
+                svg.setAttribute("viewBox", "0 0 20 60");
+                svg.style.position = "absolute";
+                svg.style.left = "50%";
+                svg.style.top = "100%";
+                svg.style.transform = "translateX(-50%)";
+
+                const path = document.createElementNS(svgNS, "path");
+                path.setAttribute("d", "M10,0 Q5,10 10,20 Q15,30 10,40 Q5,50 10,60"); // 曲線繩
+                path.setAttribute("stroke", "#444");
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke-width", "1");
+
+                svg.appendChild(path);
+                balloon.appendChild(svg);
+
+                document.body.appendChild(balloon);
+                setTimeout(() => balloon.remove(), 6000);
+            }
+
+
+        }
+    </script>
 
     <script>
         const puzzle = document.getElementById('puzzle');
@@ -119,6 +283,7 @@
         const timerDisplay = document.getElementById('timer');
         const counterDisplay = document.getElementById('counter');
         const sizeSelect = document.getElementById('sizeSelect');
+        const birthdayText = document.getElementById('birthdayText');
 
         let size = parseInt(sizeSelect.value);
         let imageUrl = './vito_by_egg_white.png'; // 預設圖片
@@ -128,11 +293,11 @@
         let seconds = 0;
         let steps = 0;
         let gameActive = true;
+        window.hasStartedOnce = false;
 
         function createTiles() {
             puzzle.innerHTML = '';
             tiles = [];
-
             tileSize = 100 * (3 / size); // 自動調整 tile 尺寸
             puzzle.style.width = `${tileSize * size}px`;
             puzzle.style.height = `${tileSize * size}px`;
@@ -226,47 +391,7 @@
             return stdDev < 2.5 && (isDark || isBright);
         }
 
-
-        //拖移方式移動拼圖
-        /*function addDragEvents() {
-            tiles.forEach(tile => {
-                const newTile = tile.cloneNode(true); // 移除所有舊事件
-                puzzle.replaceChild(newTile, tile);
-            });
-
-            tiles = Array.from(puzzle.children);
-
-            let dragged;
-
-            tiles.forEach(tile => {
-                tile.addEventListener('dragstart', () => {
-                    if (!gameActive) return e.preventDefault(); // 禁止拖動
-                    dragged = tile;
-                });
-
-                tile.addEventListener('dragover', (e) => {
-                    if (!gameActive) return;
-                    e.preventDefault();
-                });
-
-                tile.addEventListener('drop', () => {
-                    if (!gameActive) return;
-
-                    if (dragged && dragged !== tile && tile.classList.contains('empty')) {
-                        swapTiles(dragged, tile);
-                        startCounter();
-
-                        if (isSolved()) {
-                            clearInterval(timer);
-                            gameActive = false; //停止拖動
-                            alert(`完成拼圖！🎉\n用時：${seconds} 秒`);
-                        }
-                    }
-                });
-            });
-        }*/
-
-        //點擊移動方式
+        //點擊 &拖移方式移動拼圖
         function enableClickMove() {
             tiles.forEach(tile => {
                 tile.onclick = () => {
@@ -346,7 +471,14 @@
         function finishPuzzle() {
             clearInterval(timer);
             gameActive = false;
-            alert(`完成拼圖！🎉\n用時：${seconds} 秒\n移動：${steps} 次`);
+            launchCelebration();    //呼叫煙火 + 氣球
+            birthdayText.style.display = 'block';   //顯示文字
+
+            // 延遲 2 秒後顯示 alert
+            setTimeout(() => {
+                alert(`完成拼圖！🎉\n用時：${seconds} 秒\n移動：${steps} 次`);
+                birthdayText.style.display = 'none';  //隱藏文字
+            }, 2000);
         }
 
         //交換 DOM 順序和 tiles 陣列
@@ -421,6 +553,7 @@
                 } else {
                     clearInterval(interval);
                     overlay.style.display = 'none';
+                    window.hasStartedOnce = true; //完成首次啟動
                     shuffle();
                     startTimer();
                 }
@@ -457,6 +590,9 @@
         createTiles();
         countdown();
     </script>
+
+
+
 
 </body>
 
